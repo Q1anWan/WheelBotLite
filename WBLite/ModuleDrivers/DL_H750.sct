@@ -1,0 +1,29 @@
+;STM32H750 Distributed loading File
+;2023/7/5 V1.3
+
+LR_IROM1 0x08000000 0x00200000 { ; load region size_region
+	ER_IROM1 0x08000000 0x00200000 { ; load address = execution address
+		 *.o(RESET, +First)
+		 *(InRoot$$Sections)
+		 .ANY(+RO)
+		 .ANY(+XO)
+	}
+	; RW data - (128 - 1KB) DTCM, NVIC Table's meomory has jumped
+	RW_IRAM1 0x20000400 0x0001FC00 {
+		*(.RAM_DTCM)
+		.ANY(+RW +ZI)
+	}
+	; RW data - 512KB AXI SRAM
+	RW_IRAM2 0x24000000 0x00080000 {
+		*(.RAM_D1)
+		
+	}
+	; RW data - 128KB SRAM1(0x30000000) + 128KB SRAM2(0x3002 0000) + 32KB SRAM3(0x30040000)
+	RW_IRAM3 0x30000000 0x00048000 {
+		*(.RAM_D2)
+	}
+	; RW data - 64KB SRAM4(0x38000000)
+	RW_IRAM4 0x38000000 0x00010000 {
+		*(.RAM_D3)
+	}
+}
