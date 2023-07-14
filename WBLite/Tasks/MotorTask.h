@@ -30,6 +30,11 @@ class cMotorUnit
 	void UpdateLink(void);
 	void UpdateOdomentor(void);
 	void InitOdomentor(void);
+	inline float GetVel(void)
+	{return this->velocity;}
+	inline float GetDis(void)
+	{return this->displacement;}
+	
 	/*0左关节后 1左关节前 4左轮子*/
 	/*3右关节后 2右关节前 5右轮子*/
 };

@@ -58,7 +58,7 @@ void INSThreadFun(ULONG initial_input)
 		}
 		//GYROCal();//calibiration
 		/*互补滤波迭代四元数*/
-		MahonyAHRSupdateINS(INS->Q,-INS->Gyro[1],INS->Gyro[0],INS->Gyro[2],-INS->Accel[1],INS->Accel[0],INS->Accel[2]);
+		MahonyAHRSupdateINS(INS->Q, INS->Gyro[1], -INS->Gyro[0], INS->Gyro[2], INS->Accel[1], -INS->Accel[0], INS->Accel[2]);
 	}
 }
 

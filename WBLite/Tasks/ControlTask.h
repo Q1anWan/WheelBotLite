@@ -7,21 +7,24 @@
 #define	CONTROLTASK_H
 #ifdef __cplusplus
 #include "main.h"
+#include "arm_math.h"
 #include "PID.h"
+#include "QCSLite.h"
+#include "CloseLoopFun.h"
+
 #include "LinkSolver.h"
 #include "RemoterTask.h"
 #include "MotorTask.h"
 #include "IMUTask.h"
 #include "ReferDriver.h"
-#include "arm_math.h"
-#include "QCSLite.h"
 
-#define LEGMAX 330.0f
-#define LEGMID 220.0f
-#define LEGMIN 160.0f
 
-#define RADMAX 2.6f  //PI/3
-#define RADMIN 0.52f
+#define LEGMAX 190.0f
+#define LEGMID 145.0f
+#define LEGMIN 100.0f
+
+#define RADMAX  2.6f  //PI/3
+#define RADMIN  0.52f
 #define RADINIT 1.570796f // PI/2
 
 #define RADCOR 0.068f
@@ -38,7 +41,9 @@
 #define ROBOTPART_HEATSAFT_VALUE 20
 #define ROBOTPART_TROOGLEMODE_VALUE 20
 
-#define CHASIS_FOLLOW_GIMBAL_RANGE 	0.5235988f // 30 dgrees
+#define CHASIS_FOLLOW_GIMBAL_RANGE 			0.5235988f // 30 dgrees 底盘追踪云台不严格范围
+#define CHASIS_FOLLOW_GIMBAL_SAFE_RANGE		0.5235988f // 30 dgrees 底盘位置闭环异常值 超出此值后期望角度将不再继续增加
+
 #define CHASIS_SPEED_MAX 			2.0f // 2m/S
 #define CHASIS_SPEED_SIDE_MAX 		1.0f // 1m/S
 #define CHASIS_SPEED_ACCEL			0.01f 			/*  2m/s^2 (val = accel/200)	*/
@@ -187,7 +192,8 @@ typedef __PACKED_STRUCT
 struct tChasisVal
 {
 	float ChasisPsaiYaw;	//Chasis yaw angel
-	float ChasisThetaRoll;	//Chasis roll angel
+	float ChasisRoll;	//Chasis roll angel
+	float ChasisPitch;	//Chasis roll angel
 		
 	float ChasisLegLen[2];	//Chasis leg length
 	float X[6]={0};			//Theta ThetaDot Xbody XbodyDot Phi PhitDot
@@ -199,26 +205,16 @@ class cChasisControl
 {
 	protected:
 		
-	uint8_t BanlanOKFlag = 0;
-	//Bottom Middle Top 3 in 1
-	//Bot :LQRKbuf[0][]
-	//Mid :LQRKbuf[1][]
-	//Bot :LQRKbuf[2][]
-	float LQRKbuf[3][12]=
-	{
-		//Order: K00 K01 K02 K03 K04 K05 K10 K11 K12 K13 K14 K15
-		{35.1908,   2.9580,   9.9381,  15.4017,  -8.5953,  -0.7075,  -8.0688,  -0.7570,  -2.2210,  -3.3869, -125.4623,  -7.1482},	//K BOT 
-		{35.6553,   2.9412,   9.9693,  15.3446,  -6.1966,  -0.5497,  -5.6717,  -0.5336,  -1.5652,  -2.3573, -126.0126,  -7.1950},	//K MID
-		{35.9503,   2.9286,   9.9839,  15.2988,  -4.6196,  -0.4454,  -4.0799,  -0.3891,  -1.1341,  -1.6885, -126.2750,  -7.2188},	//K BOT
-	};
-	float LQROutBuf[2]={0};
-	float LQRXerrorBuf[6]={0};
-	arm_matrix_instance_f32 MatLQRNegK = {2, 6, (float*)LQRKbuf[0]};
-	arm_matrix_instance_f32 MatLQRErrX = {6, 1, LQRXerrorBuf};
-	arm_matrix_instance_f32 MatLQROutU = {2, 1, LQROutBuf};
-	
 	/*This flag is designed to make sure chasis control mode*/
 	eRobotPartChasisMode ChasisMode;
+	
+	/*Leg length level*/
+	eRobotLQRID LegLen;
+	float LeglengthVal[3]={LEGMIN,LEGMID,LEGMAX};
+	
+	/*Is blance ok*/
+	uint8_t BanlanOKFlag = 0;
+	
 	
 	/*Variates about chasis follow gimbal */
 	/*0 for X+, 1 for X-*/
@@ -229,20 +225,29 @@ class cChasisControl
 	uint8_t ChasisFollowGimbalEn = 0; 	/*Is chasis folow gimbal enable*/
 	
 	
-	
 	public:
 		
-	cChasisControl()
-	{ChasisMode = ROBOTPART_CHASIS_SHUTTLE;}
-	
-	/*This two types of velocity should be changed to X[3] in different situation*/
-	float ChasisForwardTargetVelocity=0.0f;	
-	float ChasisLeftwardTargetVelocity=0.0f;
-	
-
 	int16_t OpenLoopWheelI[2];
-	tChasisVal TargetVal;
-	tChasisVal ObserveVal;
+	tChasisVal TargetVal;	/*Refer value*/
+	tChasisVal ObserveVal;	/*Observed value*/
+	
+	cLQR LQR;
+	cLoopCFG LoopCFG;
+	cLoopYaw LoopYaw;
+	cLoopRoll LoopRoll;
+	cLoopLen LoopLen[2];/*Left Right*/
+	cMotorUnit *MotorUnits;
+		
+	/*This velocity should be changed to X[3] in different situation*/
+	float ChasisForwardTargetVelocity=0.0f;	
+
+	
+	cChasisControl()
+	{
+		this->ChasisMode = ROBOTPART_CHASIS_SHUTTLE;
+		this->LegLen = LQR_BOTTOM;
+		this->LQR.InitMatX(&this->TargetVal.MatX,&this->ObserveVal.MatX);
+	}
 	
 	/*To make sure is banlance ok*/
 	inline void SetBalanceFlag(uint8_t IsOK)
@@ -266,6 +271,14 @@ class cChasisControl
 	*/
 	inline void SetErrWithGim(float Radian)
 	{this->ChasisGimbalPositionErr = Radian;}
+	
+	/*Get head direction*/
+	inline uint8_t GetChasisHead(void)
+	{return this->ChasisHead;}
+	/*Get Forward velocity*/
+	inline float GetForwardVelocity(void)
+	{return this->ChasisHead?-ChasisForwardTargetVelocity:ChasisForwardTargetVelocity;}
+
 	
 	/*Change chasis and gimbal error's direction*/
 	void RefreshChasisHead(void)
@@ -300,26 +313,14 @@ class cChasisControl
 	inline uint8_t GetCFGENFlag(void)
 	{return this->ChasisFollowGimbalEn;}
 	
-	/*
-		SetLQR -K paramaters
-		Input is set to union to avoid over ram;
-	*/
-	void SetLQRK(eRobotLQRID ID)
-	{this->MatLQRNegK.pData = (float*)LQRKbuf[(uint8_t)ID];}
+
+	inline void SetLegLen(eRobotLQRID ID)
+	{this->LegLen = ID;}
+	inline eRobotLQRID GetLegLenFlag(void)
+	{return this->LegLen;}
+	inline float GetLegLen(void)
+	{return this->LeglengthVal[(uint8_t) this->LegLen];}
 	
-	/*
-		Output is u (T,Tp)`
-	*/
-	void LQRCal(float* Tout)
-	{
-		//Calculate error
-		arm_mat_sub_f32(&this->ObserveVal.MatX,&this->TargetVal.MatX,&this->MatLQRErrX);
-		//Calculate output value
-		arm_mat_mult_f32(&this->MatLQRNegK,&this->MatLQRErrX,&this->MatLQROutU);
-		//return Value
-		Tout[0] = this->LQROutBuf[0];
-		Tout[1] = this->LQROutBuf[1];
-	}
 };
 
 
@@ -337,7 +338,7 @@ class cRobotControl
 	robot_referee_status_t::ext_game_robot_status_t *ext_game_robot_status;//Robot status 0x0202
 	robot_referee_status_t::ext_power_heat_data_t *ext_power_heat_data;//Robot power heat data 0x0203
 	
-
+	
 	public:
 	cRobotControl()
 	{
@@ -426,29 +427,6 @@ class cRobotControl
 	}	
 };
 
-
-//class cLoopYaw : public cPIDPla
-//{
-//	public:
-//	float TargetLen = 300.0f;
-//	cLoop9025Yaw(void)
-//	{PID_Init();}
-//	
-//	void PID_Init(void)
-//	{
-//		this->Fs = 500.0f;
-//		this->Kp = 3000.0f;
-//		this->Ki = 10;
-//		this->Kd = 340000;
-//		this->Kf = 1.0f;
-//		this->IN_RANGE_EN_D = 1.05;// Pi/3
-//		this->IN_RANGE_EN_I = 0.6;
-//		this->MaxOutValue = 300;
-//		this->MinOutValue = -300;
-//		this->Maxintegral = 30;
-//		this->Minintegral = -30;
-//	}
-//};
 
 //class cVMC_Len : public cPIDPla
 //{

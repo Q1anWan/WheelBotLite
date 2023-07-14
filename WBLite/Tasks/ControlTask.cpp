@@ -6,6 +6,7 @@
 
 cRef refdemo;
 extern cRemoter *Msg_Remoter;
+extern cMotorUnit *MotorUnit;
 cRef *Msg_Refer = &refdemo;
 
 float ForwardSpeed = 0.0f;
@@ -15,6 +16,8 @@ float Lens  = LEGMID;
 
 
 TX_SEMAPHORE COMSem;
+
+SRAM_SET_DTCM cRobotControl RobotControlt;
 cRobotControl *RobotControl = 0;
 
 TX_THREAD RoboCTRThread;
@@ -22,8 +25,9 @@ uint8_t RoboCTRThreadStack[2048]={0};
 
 void RoboCTRThreadFun(ULONG initial_input)
 {
-	cRobotControl RobotControlt;
 	RobotControl = &RobotControlt;
+	RobotControl->ChasisControl.MotorUnits = MotorUnit;
+	
 	tx_thread_sleep(100);
 
 	/*Input refer system data point*/
@@ -145,9 +149,10 @@ void RoboCTRThreadFun(ULONG initial_input)
 		/*Robot input activity*/	
 		
 		/*Chasis activity*/
+		static uint8_t Lastkey_CV;
+		static uint8_t LastKey_Wheel_Zero;
 		switch(RobotControl->CheckRobotMode()&0x03)
-		{
-			
+		{	
 			case ROBOTMODE_IDLE:
 			{
 				/*Check if Chasis error happened*/
@@ -160,6 +165,9 @@ void RoboCTRThreadFun(ULONG initial_input)
 				RobotControl->ChasisControl.OpenLoopWheelI[0] = 0.0f;
 				RobotControl->ChasisControl.OpenLoopWheelI[1] = 0.0f;
 				
+				/*Yaw security*/
+				RobotControl->ChasisControl.TargetVal.ChasisPsaiYaw = RobotControl->ChasisControl.ObserveVal.ChasisPsaiYaw;
+				
 				/*Displacement setting to observated value*/
 				RobotControl->ChasisControl.TargetVal.X[2] = RobotControl->ChasisControl.ObserveVal.X[2];
 				/*Velocity should be set to zero*/
@@ -168,6 +176,8 @@ void RoboCTRThreadFun(ULONG initial_input)
 			}
 			case ROBOTMODE_ESCAPE:
 			{
+				/*Yaw security*/
+				RobotControl->ChasisControl.TargetVal.ChasisPsaiYaw = RobotControl->ChasisControl.ObserveVal.ChasisPsaiYaw;
 				
 				/*前后控制*/
 				/*This if...else... is designed to make sure remoter has higher priority than keyboard*/
@@ -240,6 +250,32 @@ void RoboCTRThreadFun(ULONG initial_input)
 						if(Msg_Remoter->RC_Data->key.E)
 						{RobotControl->ChasisControl.SetCFGENStatue(1);}
 						RobotControl->ChasisControl.SetCFGSStatue(Msg_Remoter->RC_Data->key.E);
+						
+						/*Leg length control*/
+						if(Msg_Remoter->RC_Data->rmt.SW2==1)/*Booster safty mode can do*/
+						{
+							if((fabs(Msg_Remoter->RC_Data->rmt.WHEEL)==1.0f)&&LastKey_Wheel_Zero)
+							{
+								Lastkey_CV = 1;LastKey_Wheel_Zero=0;
+								int8_t tmp = RobotControl->ChasisControl.GetLegLenFlag() + ((Msg_Remoter->RC_Data->rmt.WHEEL==1.0f)?1:-1);
+								if(tmp<LQR_BOTTOM){tmp = LQR_BOTTOM;}
+								else if(tmp>LQR_TOP){tmp=LQR_TOP;}
+
+								RobotControl->ChasisControl.SetLegLen((eRobotLQRID)tmp);
+							}
+
+						}
+						if((Msg_Remoter->RC_Data->key.C||Msg_Remoter->RC_Data->key.V) && (!Lastkey_CV))
+						{
+							Lastkey_CV = 1;
+							int8_t tmp = RobotControl->ChasisControl.GetLegLenFlag() + ((Msg_Remoter->RC_Data->key.V - Msg_Remoter->RC_Data->key.C));
+							if(tmp<LQR_BOTTOM){tmp = LQR_BOTTOM;}
+							else if(tmp>LQR_TOP){tmp=LQR_TOP;}
+							
+							RobotControl->ChasisControl.SetLegLen((eRobotLQRID)tmp);
+						}
+						else
+						{Lastkey_CV = 0;}
 						
 						/*前后控制*/
 						/*This if...else... is designed to make sure remoter has higher priority than keyboard*/
@@ -316,15 +352,40 @@ void RoboCTRThreadFun(ULONG initial_input)
 						{
 							RobotControl->ChasisControl.SetChasisMode(ROBOTPART_CHASIS_SHUTTLE);
 							RobotControl->ChasisControl.RefreshChasisHead();
-							RobotControl->ChasisControl.ChasisLeftwardTargetVelocity = 0;
+							RobotControl->ChasisControl.ChasisForwardTargetVelocity = 0;
 							break;
 						}
+						
+						/*Leg length control*/
+						if(Msg_Remoter->RC_Data->rmt.SW2==1)/*Booster safty mode can do*/
+						{
+							if((fabs(Msg_Remoter->RC_Data->rmt.WHEEL)==1.0f)&&LastKey_Wheel_Zero)
+							{
+								Lastkey_CV = 1;LastKey_Wheel_Zero=0;
+								int8_t tmp = RobotControl->ChasisControl.GetLegLenFlag() + ((Msg_Remoter->RC_Data->rmt.WHEEL==1.0f)?1:-1);
+								if(tmp<LQR_BOTTOM){tmp = LQR_BOTTOM;}
+								else if(tmp>LQR_TOP){tmp=LQR_TOP;}
+
+								RobotControl->ChasisControl.SetLegLen((eRobotLQRID)tmp);
+							}
+						}
+						if((Msg_Remoter->RC_Data->key.C||Msg_Remoter->RC_Data->key.V) && (!Lastkey_CV))
+						{
+							Lastkey_CV = 1;
+							int8_t tmp = RobotControl->ChasisControl.GetLegLenFlag() + ((Msg_Remoter->RC_Data->key.V - Msg_Remoter->RC_Data->key.C));
+							if(tmp<LQR_BOTTOM){tmp = LQR_BOTTOM;}
+							else if(tmp>LQR_TOP){tmp=LQR_TOP;}
+							
+							RobotControl->ChasisControl.SetLegLen((eRobotLQRID)tmp);
+						}
+						else
+						{Lastkey_CV = 0;}
 						
 						/*左右控制*/
 						/*This if...else... is designed to make sure remoter has higher priority than keyboard*/
 						if(Msg_Remoter->RC_Data->rmt.CH2!=0.0f)
 						{
-							RobotControl->ChasisControl.ChasisLeftwardTargetVelocity =  Msg_Remoter->RC_Data->rmt.CH2*CHASIS_SPEED_SIDE_MAX;
+							RobotControl->ChasisControl.ChasisForwardTargetVelocity =  Msg_Remoter->RC_Data->rmt.CH2*CHASIS_SPEED_SIDE_MAX;
 						}/*Close-loop control with fix this*/
 						else//鼠标键盘权限
 						{	
@@ -334,14 +395,16 @@ void RoboCTRThreadFun(ULONG initial_input)
 							if(keyval>CHASIS_SPEED_ACCEL){keyval = CHASIS_SPEED_ACCEL;}
 							else if(keyval<-CHASIS_SPEED_ACCEL){keyval = -CHASIS_SPEED_ACCEL;}
 							
-							RobotControl->ChasisControl.ChasisLeftwardTargetVelocity =  keyval;
+							RobotControl->ChasisControl.ChasisForwardTargetVelocity =  keyval;
 						}
 					}
 				}
 				break;
 			}
 		}
-		
+		if(fabs(Msg_Remoter->RC_Data->rmt.WHEEL)<0.1f)
+		{LastKey_Wheel_Zero = 1;}
+			
 		/*Gimbal activity*/
 		switch(RobotControl->CheckRobotMode()&0x03)
 		{
@@ -527,243 +590,3 @@ void RoboCTRThreadFun(ULONG initial_input)
 		}		
 	}
 }
-
-
-//TX_THREAD Loop9025Thread;
-//uint8_t   Loop9025ThreadStack[1280]={0};
-
-//cLoop9025Stand	*Loop9025Stand;
-//cLoop9025Yaw	*Loop9025Yaw;
-
-//extern cINS *INS;
-//float MultiY = 0.0f;
-
-//extern TX_BYTE_POOL MotorPool;
-
-//void Loop9025ThreadFun(ULONG initial_input)
-//{
-
-//	Loop9025Stand = new cLoop9025Stand;
-//	Loop9025Yaw  = new cLoop9025Yaw;
-//	
-//	Loop9025Stand->SetRef(0.0f);
-//	Loop9025Yaw->SetRef(0.0f);
-//	
-//	while(!INS){tx_thread_sleep(50);}
-//	while(INS->QChasis[0]==1.0f){tx_thread_sleep(50);}
-//	
-//	static float LastY;
-////	static float MultiY;
-//	tx_thread_sleep(1000);
-//	ULONG timer = 0;
-//	for(;;)
-//	{
-//		timer = tx_time_get();
-//		float angel_t =  QCS.Yaw(INS->QChasis) - LastY;
-//		angel_t = (angel_t>PI) ? angel_t-2*PI :angel_t;
-//		angel_t = (angel_t<-PI)? angel_t+2*PI :angel_t;
-//		MultiY += angel_t;
-//		LastY	= QCS.Yaw(INS->QChasis);
-//		
-//		if(Msg_Remoter->RC_Data->rc.s1==2 &&! Msg_Remoter->IsRCOffline)
-//		{
-//			Loop9025Yaw->SetRef(TargetAngel);
-//			
-//			Loop9025Stand->PID_Cal(QCS.Pitch(INS->QChasis));
-//			Loop9025Yaw->PID_Cal(MultiY);
-//			
-
-//			float WheelTorI[2] ={
-//				Loop9025Stand->GetOut() + Loop9025Yaw->GetOut() + ForwardSpeed + Loop9025Stand->Mcorrect,
-//				Loop9025Stand->GetOut() - Loop9025Yaw->GetOut() + ForwardSpeed + Loop9025Stand->Mcorrect};
-//			
-//				
-//			/*动态调整最大值以保持运动趋势*/
-//			int16_t maxval = (abs(WheelTorI[0])>abs(WheelTorI[1])) ? abs(WheelTorI[0]) : abs(WheelTorI[1]);
-//			if(maxval>3000)
-//			{
-//				float calibK = 3000.0f/maxval;
-//				WheelTorI[0]*=calibK;
-//				WheelTorI[1]*=calibK;
-//			}
-//			
-//			KF9025L->Params->iqcontrol =  -WheelTorI[0];
-//			KF9025R->Params->iqcontrol =   WheelTorI[1];
-//	
-//		}
-//		else
-//		{
-//			tx_thread_sleep(100);
-//			Loop9025Stand->Reset();
-//			Loop9025Yaw->Reset();
-//			TargetAngel = MultiY;
-//		}
-//		tx_thread_sleep_until(&timer,2);
-//	}
-//}
-
-
-
-
-//TX_THREAD Loop8016IThread;
-//uint8_t   Loop8016IThreadStack[4096]={0};
-//cLinkSolver *LinkL = 0;
-//cLinkSolver *LinkR = 0;
-
-//cFilterBTW2_5Hz *FliWheelSpeed = 0;
-//cFilterBTW2_5Hz *FliSpeedIpt = 0;
-
-//cVMC_Rad *VMC_Rad_L=0;
-//cVMC_Len *VMC_Len_L=0;
-//cVMC_Rad *VMC_Rad_R=0;
-//cVMC_Len *VMC_Len_R=0;
-
-//cVMC_Roll *VMC_Roll = 0;
-//cVMC_Speed*VMC_Speed= 0;
-
-
-//void Loop8016IThreadFun(ULONG initial_input)
-//{
-//	cLinkSolver tLinkL;
-//	cLinkSolver tLinkR;
-//	cFilterBTW2_5Hz tBTW2W;
-//	cFilterBTW2_5Hz tBTW2I;
-//	
-//	LinkL = &tLinkL;
-//	LinkR = &tLinkR;
-//	FliWheelSpeed = &tBTW2W;
-//	FliSpeedIpt = &tBTW2I;
-//	
-//	cVMC_Rad tVMC_Rad_L;
-//	cVMC_Len tVMC_Len_L;
-//	cVMC_Rad tVMC_Rad_R;
-//	cVMC_Len tVMC_Len_R;
-//	cVMC_Roll	tVMC_Roll;
-//	cVMC_Speed	tVMC_Speed;
-//	
-//	
-//	VMC_Rad_L = &tVMC_Rad_L; 
-//	VMC_Len_L = &tVMC_Len_L;
-//	VMC_Rad_R = &tVMC_Rad_R; 
-//	VMC_Len_R = &tVMC_Len_R;
-//	VMC_Roll  = &tVMC_Roll;
-//	VMC_Speed = &tVMC_Speed;
-//	
-//	VMC_Rad_L->SetRef(PI/2);
-//	VMC_Len_L->SetRef(LEGMID);
-//	VMC_Rad_R->SetRef(PI/2);
-//	VMC_Len_R->SetRef(LEGMID);
-//	VMC_Roll ->SetRef(0);
-//	VMC_Speed->SetRef(0);
-//	
-//	
-//	uint8_t StartMode = 0;
-//	float FSpeed_t = 0;
-//	float FSpeed = 0;
-//	
-//	
-//	tx_thread_sleep(1000);
-//	ULONG timer = 0;
-//	for(;;)
-//	{
-//		timer = tx_time_get();
-//		LinkL->InputLink(MG8016L3->GetRadian(),MG8016L2->GetRadian());
-//		LinkL->Resolve();
-
-//		LinkR->InputLink(MG8016R3->GetRadian(),MG8016R2->GetRadian());
-//		LinkR->Resolve();
-//		
-//		FSpeed_t = 0.5f*(KF9025L->GetSpeed() - KF9025R->GetSpeed());
-//		FSpeed = FliWheelSpeed->BTW2Cal(FSpeed_t);
-//		
-
-//		
-//		if(Msg_Remoter->RC_Data->rc.s1==2 &&! Msg_Remoter->IsRCOffline)
-//		{
-//			if(StartMode)//起摆
-//			{
-//				Loop9025Stand->Mcorrect = 300;
-//				tx_thread_sleep(1000);
-//				Loop9025Stand->Mcorrect = 0;
-//				StartMode=0;
-//			}
-//			else
-//			{
-//				VMC_Roll ->SetRef(0);
-//				VMC_Roll ->PID_Cal(QCS.Roll(INS->QChasis));
-//				
-//				VMC_Speed->SetRef(FliSpeedIpt->BTW2Cal(SpeedTarget));
-//				VMC_Speed->PID_Cal(FSpeed);
-//				
-//				VMC_Rad_L->SetRef(VMC_Speed->GetOut());
-//				VMC_Rad_R->SetRef(VMC_Speed->GetOut());
-//				
-//				VMC_Len_L->SetRef(
-//									Lens/arm_sin_f32(VMC_Speed->GetOut())\
-//									+VMC_Roll->GetOut());
-//				VMC_Len_R->SetRef(
-//									Lens/arm_sin_f32(VMC_Speed->GetOut())\
-//									-VMC_Roll->GetOut());
-//				
-//				
-//				VMC_Len_L->PID_Cal(LinkL->GetPendulumLen());
-//				VMC_Rad_L->PID_Cal(LinkL->GetPendulumRadian());
-//				
-//				                                                                                                                                                                                                                                                                                                                                                                                                                                                      
-//				float FL[2]={VMC_Len_L->GetOut(),-VMC_Rad_L->GetOut()};
-//				float TL[2];
-//				LinkL->VMCCal(FL,TL);
-
-//	//			/*电机保护*/
-//				
-//				/*-20*/
-//				if(MG8016L2->GetRadian()>3.054326f)
-//				{MG8016L2->Params->iqcontrol = (TL[1]<-PWR_LIMIT) ? -PWR_LIMIT : TL[1];}
-//				else
-//				{MG8016L2->Params->iqcontrol = TL[1];}
-//				
-
-//				if((MG8016L3->GetRadian()>PI)||(MG8016L3->GetRadian()<0.1047197f))
-//				{MG8016L3->Params->iqcontrol = (TL[0]> PWR_LIMIT) ? PWR_LIMIT : TL[0];}
-//				else
-//				{MG8016L3->Params->iqcontrol = TL[0];}
-//					
-//				
-//				VMC_Len_R->PID_Cal(LinkR->GetPendulumLen());
-//				VMC_Rad_R->PID_Cal(LinkR->GetPendulumRadian());
-//				
-//				float FR[2]={VMC_Len_R->GetOut(),-VMC_Rad_R->GetOut()};
-//				float TR[2];
-//				LinkR->VMCCal(FR,TR);
-//	
-
-//	//			/*电机保护*/
-//				
-//				/*-20*/
-//				if(MG8016R2->GetRadian()>3.054326f)
-//				{MG8016R2->Params->iqcontrol = (-TR[1]>PWR_LIMIT) ? PWR_LIMIT : -TR[1];}
-//				else
-//				{MG8016R2->Params->iqcontrol = -TR[1];}
-//				
-
-//				if((MG8016R3->GetRadian()>PI)||(MG8016R3->GetRadian()<0.1047197f))
-//				{MG8016R3->Params->iqcontrol = (-TR[0]<-PWR_LIMIT) ? -PWR_LIMIT : -TR[0];}
-//				else
-//				{MG8016R3->Params->iqcontrol = -TR[0];}
-//				
-
-//			}
-//		}
-//		else
-//		{
-//			StartMode = 1;
-//			VMC_Len_L->Reset();
-//			VMC_Len_R->Reset();
-//			Lens = LEGMID;
-//			tx_thread_sleep(100);
-//		}
-//		
-//		tx_thread_sleep_until(&timer,2);
-//	}
-//}
-//                       

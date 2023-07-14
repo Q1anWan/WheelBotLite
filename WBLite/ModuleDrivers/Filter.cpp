@@ -59,7 +59,7 @@ float cFilterBTW2_5Hz::BTW2Cal(float data)
 }
 
 /*
-	cFilterBTW2_5Hz
+	cFilterBTW2_40Hz
 	滤波器结构  : 直接 I 型，二阶节                                                                            
 	节数     : 1 
 	fs=500Hz,fc=40Hz,阶数=2

@@ -46,8 +46,6 @@ class cINS
 	float Gyro[3];
 	float *Temperature;
 	
-	float QChasis[4]={1.0f,0,0,0};
-	float QGimbal[4]={1.0f,0,0,0};
 	float Q[4]={1.0f,0,0,0};
 	
 	float ABS_Chasis = 0.0f;

@@ -258,6 +258,9 @@ In shuttle mode, robot chasis is under close-loop controd. While moving, chasis 
 | Q   | Turn to Side Mode | Press Click|
 | E   | Keep chasis coincidiently follow gimbal | Press Click |
 | G   | Turn to Flying Mode | Press Click|
+| C   | Reduce Leg Length | Press Click|
+| V   | Add Leg Length | Press Click|
+| WHEEL   | Change Leg Length | Push-Pull to End while SW2==1 |
 | Ctrl+F   | Jump | Press Click|
 
 
@@ -274,6 +277,9 @@ Chasis folow gimbal in 90d or -90d(decided on the closet armor).
 | A   | Quit SideMode | Long Press On |
 | D   | Quit SideMode | Long Press On |
 | E   | Quit SideMode | Press On |
+| C   | Reduce Leg Length | Press Click|
+| V   | Add Leg Length | Press Click|
+| WHEEL   | Change Leg Length | Push-Pull to End while SW2==1 |
 
 
 #### Flying Mode

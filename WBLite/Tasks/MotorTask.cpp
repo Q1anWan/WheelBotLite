@@ -29,6 +29,12 @@ void CANThreadFun(ULONG initial_input)
 	MotorUnit->Motor[4].EnableMotor();tx_semaphore_get(&CANSem,5);tx_thread_sleep(1);
 	MotorUnit->Motor[5].EnableMotor();tx_semaphore_get(&CANSem,5);tx_thread_sleep(1);
 	
+////	MotorUnit->Motor[0].SetZero();tx_semaphore_get(&CANSem,5);tx_thread_sleep(100);
+////	MotorUnit->Motor[3].SetZero();tx_semaphore_get(&CANSem,5);tx_thread_sleep(100);
+//	MotorUnit->Motor[1].SetZero();tx_semaphore_get(&CANSem,5);tx_thread_sleep(100);
+//	MotorUnit->Motor[2].SetZero();tx_semaphore_get(&CANSem,5);tx_thread_sleep(100);
+
+	tx_thread_sleep(1000);
 	MotorUnit->InitOdomentor();
 	while(1)
 	{	

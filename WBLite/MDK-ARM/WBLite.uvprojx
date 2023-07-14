@@ -184,7 +184,7 @@
             <hadIRAM>1</hadIRAM>
             <hadXRAM>0</hadXRAM>
             <uocXRam>0</uocXRam>
-            <RvdsVP>3</RvdsVP>
+            <RvdsVP>2</RvdsVP>
             <RvdsMve>0</RvdsMve>
             <RvdsCdeCp>0</RvdsCdeCp>
             <nBranchProt>0</nBranchProt>
@@ -1132,10 +1132,12 @@
               <FileType>8</FileType>
               <FilePath>..\Tasks\CloseLoopTask.cpp</FilePath>
             </File>
+            <File>
+              <FileName>CloseLoopFun.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Tasks\CloseLoopFun.h</FilePath>
+            </File>
           </Files>
-        </Group>
-        <Group>
-          <GroupName>::CMSIS</GroupName>
         </Group>
         <Group>
           <GroupName>Middlewares/ThreadX/RTOS/ThreadX/Core</GroupName>
@@ -10333,6 +10335,9 @@
               </FileOption>
             </File>
           </Files>
+        </Group>
+        <Group>
+          <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
     </Target>
