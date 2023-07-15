@@ -236,6 +236,8 @@ class cChasisControl
 	cLoopYaw LoopYaw;
 	cLoopRoll LoopRoll;
 	cLoopLen LoopLen[2];/*Left Right*/
+	cLoopTheta LoopTheta;
+
 	cMotorUnit *MotorUnits;
 		
 	/*This velocity should be changed to X[3] in different situation*/

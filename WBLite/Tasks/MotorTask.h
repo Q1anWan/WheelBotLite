@@ -13,7 +13,7 @@
 #define AngelCalib0  1.915516f // PI/2 + CAL
 #define AngelCalib1  1.226076f // PI/2 - CAL
 
-#define WHEELCOEFF	0.0625f
+#define WHEELCOEFF	0.0625f /*°ë¾¶*/
 class cMotorUnit
 {
 	protected:

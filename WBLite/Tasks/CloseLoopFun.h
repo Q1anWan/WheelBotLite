@@ -3,7 +3,7 @@
 #ifdef __cplusplus
 #include "ControlTask.h"
 
-
+/*ÐÐ½ø¿ØÖÆ*/
 class cLQR
 {		
 	protected:
@@ -58,7 +58,7 @@ class cLQR
 	}
 };
 
-
+/*º½Ïò½Ç×·×Ù*/
 class cLoopYaw : public cPIDPla
 {
 	public:
@@ -82,6 +82,7 @@ class cLoopYaw : public cPIDPla
 	}
 };
 
+/*µ¹Á¢°Ú³¤¶È*/
 class cLoopLen : public cPIDPla
 {
 	public:
@@ -104,6 +105,7 @@ class cLoopLen : public cPIDPla
 	}
 };
 
+/*Ð±ÆÂÆ½ÎÈ*/
 class cLoopRoll : public cPIDPla
 {
 	public:
@@ -117,8 +119,8 @@ class cLoopRoll : public cPIDPla
 		this->Ki = 0;
 		this->Kd = 0;
 		this->Kf = 0.0f;
-		this->IN_RANGE_EN_D = 1.05;// Pi/3
-		this->IN_RANGE_EN_I = 0.6;
+		this->IN_RANGE_EN_D = 0;// Pi/3
+		this->IN_RANGE_EN_I = 0;
 		this->MaxOutValue = 1;
 		this->MinOutValue = -1;
 		this->Maxintegral = 0;
@@ -126,6 +128,7 @@ class cLoopRoll : public cPIDPla
 	}
 };
 
+/*µ×ÅÌ¸úËæÔÆÌ¨*/
 class cLoopCFG : public cPIDPla
 {
 	public:
@@ -139,8 +142,31 @@ class cLoopCFG : public cPIDPla
 		this->Ki = 0;
 		this->Kd = 0;
 		this->Kf = 0.0f;
-		this->IN_RANGE_EN_D = 1.05;// Pi/3
-		this->IN_RANGE_EN_I = 0.6;
+		this->IN_RANGE_EN_D = 0;// Pi/3
+		this->IN_RANGE_EN_I = 0;
+		this->MaxOutValue = 1;
+		this->MinOutValue = -1;
+		this->Maxintegral = 0;
+		this->Minintegral = 0;
+	}
+};
+
+/*±ÜÃâÅü²æ*/
+class cLoopTheta : public cPIDPla
+{
+	public:
+	cLoopTheta(void)
+	{PID_Init();}
+	
+	void PID_Init(void)
+	{
+		this->Fs = 0.0f;
+		this->Kp = 0.7f;
+		this->Ki = 0;
+		this->Kd = 0.2;
+		this->Kf = 0.0f;
+		this->IN_RANGE_EN_D = 0;// Pi/3
+		this->IN_RANGE_EN_I = 0;
 		this->MaxOutValue = 1;
 		this->MinOutValue = -1;
 		this->Maxintegral = 0;

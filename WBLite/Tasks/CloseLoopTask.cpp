@@ -92,7 +92,7 @@ void CloseLoopThreadFun(ULONG initial_input)
 				static ULONG TIM;
 				if(StartFlag==0)
 				{
-					StartFlag = 1;LastLenChangeFlag = 1;
+					StartFlag = 1;LastLenChangeFlag = 1;addtimes  = 0;
 					RobotControl->ChasisControl.LoopLen[0].Reset();RobotControl->ChasisControl.LoopLen[1].Reset();
 					Lentmp[0] = RobotControl->ChasisControl.MotorUnits->LinkSolver[0].GetPendulumLen();
 					Lentmp[1] = RobotControl->ChasisControl.MotorUnits->LinkSolver[1].GetPendulumLen();
@@ -118,9 +118,9 @@ void CloseLoopThreadFun(ULONG initial_input)
 					if(++addtimes==500)
 					{
 						StartFlag = 0;
-						addtimes  = 0;
 						RobotControl->SetPartMode(ROBOTPART_ID_BLC,ROBOTPART_STATUS_NORMAL);
 						RobotControl->ChasisControl.LQR.RefreshLQRK(RobotControl->ChasisControl.GetLegLenFlag());
+						RobotControl->ChasisControl.TargetVal.X[2] = RobotControl->ChasisControl.ObserveVal.X[2];
 					}
 				}
 			}
@@ -148,11 +148,11 @@ void CloseLoopThreadFun(ULONG initial_input)
 				}
 				else
 				{Lentmp[0] = RobotControl->ChasisControl.GetLegLen();Lentmp[1]=Lentmp[0];}
+				
 				LastLenFlag = RobotControl->ChasisControl.GetLegLenFlag();
 			}
 			
 			/*Robot roll*/
-			Lentmp[0] = RobotControl->ChasisControl.GetLegLen();Lentmp[1]=Lentmp[0];
 			RobotControl->ChasisControl.LoopRoll.PID_Cal(QCS.Roll(INS->Q));
 			
 			RobotControl->ChasisControl.LoopLen[0].SetRef(Lentmp[0] - RobotControl->ChasisControl.LoopRoll.GetOut());
@@ -164,37 +164,45 @@ void CloseLoopThreadFun(ULONG initial_input)
 			/*LQR*/
 			static float ThetaLast,ThetaLastLP;
 			float Tlqr[2]={0};
-			/*Set reference*/
-			RobotControl->ChasisControl.TargetVal.X[0] = 0;
-			RobotControl->ChasisControl.TargetVal.X[1] = 0;
-			RobotControl->ChasisControl.TargetVal.X[2] = VelocityBTW.BTW2Cal(RobotControl->ChasisControl.GetForwardVelocity());
-			RobotControl->ChasisControl.TargetVal.X[3] = DisplacementBTW.BTW2Cal(RobotControl->ChasisControl.TargetVal.X[3] + 0.002f*RobotControl->ChasisControl.GetForwardVelocity());
-			RobotControl->ChasisControl.TargetVal.X[4] = -RobotControl->ChasisControl.TargetVal.ChasisPitch;
-			RobotControl->ChasisControl.TargetVal.X[5] = 0;
 			
 			/*Set observation*/
 			RobotControl->ChasisControl.ObserveVal.X[0] = 0.5f*(RobotControl->ChasisControl.MotorUnits->LinkSolver[0].GetPendulumRadian()+RobotControl->ChasisControl.MotorUnits->LinkSolver[1].GetPendulumRadian()) + RobotControl->ChasisControl.TargetVal.ChasisPitch - PI_Half ;
-			
-			//ThetaLastLP = 0.8*ThetaLastLP + 100.0f*(RobotControl->ChasisControl.ObserveVal.X[0] - ThetaLast);
-			
 			RobotControl->ChasisControl.ObserveVal.X[1] = 500.0f*(RobotControl->ChasisControl.ObserveVal.X[0] - ThetaLast);
 			RobotControl->ChasisControl.ObserveVal.X[2] = RobotControl->ChasisControl.MotorUnits->GetDis();
 			RobotControl->ChasisControl.ObserveVal.X[3] = RobotControl->ChasisControl.MotorUnits->GetVel();
 			RobotControl->ChasisControl.ObserveVal.X[4] = -RobotControl->ChasisControl.ObserveVal.ChasisPitch;
 			RobotControl->ChasisControl.ObserveVal.X[5] = INS->Gyro[0];/*This is the really pitch. Different placement should be treated differently*/
 			
+			
+			/*Set reference*/
+			RobotControl->ChasisControl.TargetVal.X[0] = 0;
+			RobotControl->ChasisControl.TargetVal.X[1] = 0;
+			
+			/*While moving, process D denamatic*/
+			if(RobotControl->ChasisControl.GetForwardVelocity()!=0.0f)
+			{RobotControl->ChasisControl.TargetVal.X[2] = DisplacementBTW.BTW2Cal(RobotControl->ChasisControl.ObserveVal.X[2] + 0.002f*RobotControl->ChasisControl.GetForwardVelocity());}
+			RobotControl->ChasisControl.TargetVal.X[2] = DisplacementBTW.BTW2Cal(RobotControl->ChasisControl.TargetVal.X[2] + 0.002f*RobotControl->ChasisControl.GetForwardVelocity());
+			RobotControl->ChasisControl.TargetVal.X[3] = VelocityBTW.BTW2Cal(RobotControl->ChasisControl.GetForwardVelocity());
+			RobotControl->ChasisControl.TargetVal.X[4] = -RobotControl->ChasisControl.TargetVal.ChasisPitch;
+			RobotControl->ChasisControl.TargetVal.X[5] = 0;
+			
 			ThetaLast = RobotControl->ChasisControl.ObserveVal.X[0];
 			
 			if(RobotControl->CheckPartMode(ROBOTPART_ID_BLC)==ROBOTPART_STATUS_NORMAL)
 			{RobotControl->ChasisControl.LQR.LQRCal(Tlqr);}
+			
 			WheelMotor[0] += Tlqr[0];
 			WheelMotor[1] -= Tlqr[0];
+			
+			/*Theta different control*/
+			RobotControl->ChasisControl.LoopTheta.PID_Cal(RobotControl->ChasisControl.MotorUnits->LinkSolver[0].GetPendulumRadian() - RobotControl->ChasisControl.MotorUnits->LinkSolver[1].GetPendulumRadian());
+			
 			/*VMC*/
 			/*Force*/
 			FT_L[0] = RobotControl->ChasisControl.LoopLen[0].GetOut();
 			FT_R[0] = RobotControl->ChasisControl.LoopLen[1].GetOut();
-			FT_L[1] = -Tlqr[1];
-			FT_R[1] = -Tlqr[1];
+			FT_L[1] = -Tlqr[1] - RobotControl->ChasisControl.LoopTheta.GetOut();
+			FT_R[1] = -Tlqr[1] + RobotControl->ChasisControl.LoopTheta.GetOut();
 			
 			/*Torque*/
 			RobotControl->ChasisControl.MotorUnits->LinkSolver[0].VMCCal(FT_L,TorqueL);

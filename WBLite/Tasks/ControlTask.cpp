@@ -17,7 +17,7 @@ float Lens  = LEGMID;
 
 TX_SEMAPHORE COMSem;
 
-SRAM_SET_DTCM cRobotControl RobotControlt;
+SRAM_SET_DTCM static cRobotControl RobotControlt;
 cRobotControl *RobotControl = 0;
 
 TX_THREAD RoboCTRThread;
